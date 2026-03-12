@@ -1,1 +1,39 @@
-123
+services:
+  api:
+    build:
+      context: ./api
+    container_name: campus-kiosk-api
+    depends_on:
+      - redis
+    environment:
+      PORT: 3000
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3000:3000"
+
+  worker:
+    build:
+      context: ./worker
+    container_name: campus-kiosk-worker
+    depends_on:
+      - redis
+    environment:
+      REDIS_URL: redis://redis:6379
+
+  kiosk-sim:
+    build:
+      context: ./kiosk-sim
+    container_name: campus-kiosk-sim
+    depends_on:
+      - api
+    environment:
+      KIOSK_SIM_API_BASE_URL: http://api:3000
+      KIOSK_SIM_KIOSKS: 3
+      KIOSK_SIM_KIOSK_PREFIX: kiosk
+      KIOSK_SIM_INTERVAL_MS: 1000
+
+  redis:
+    image: redis:7-alpine
+    container_name: campus-kiosk-redis
+    ports:
+      - "6379:6379"
