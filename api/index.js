@@ -4,6 +4,7 @@ const { createClient } = require("redis");
 const app = express();
 const port = Number(process.env.PORT || 3000);
 const redisUrl = process.env.REDIS_URL || "redis://redis:6379";
+const jobsQueueName = "jobs";
 
 const redis = createClient({ url: redisUrl });
 
@@ -27,10 +28,14 @@ app.post("/orders", async (req, res) => {
 
   const storedOrder = {
     ...order,
-    status: order.status || "accepted",
+    status: "queued"  
   };
 
   await redis.set(orderKey(clientOrderId), JSON.stringify(storedOrder));
+  await redis.lPush(
+    jobsQueueName,
+    JSON.stringify({ clientOrderId })
+  );
 
   return res.status(201).json(storedOrder);
 });
