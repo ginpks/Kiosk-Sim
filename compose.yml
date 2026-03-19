@@ -31,6 +31,7 @@ services:
       KIOSK_SIM_KIOSKS: 3
       KIOSK_SIM_KIOSK_PREFIX: kiosk
       KIOSK_SIM_INTERVAL_MS: 1000
+      KIOSK_SIM_RETRY_RATE: 0.2
 
   redis:
     image: redis:7-alpine
