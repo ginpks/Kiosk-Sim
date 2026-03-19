@@ -1,4 +1,5 @@
 const express = require("express");
+const path = require("path");
 const { createClient } = require("redis");
 
 const app = express();
@@ -17,27 +18,65 @@ function orderKey(clientOrderId) {
 }
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+app.use(express.static(path.join(__dirname, "public")));
 
-app.post("/orders", async (req, res) => {
-  const order = req.body;
+async function enqueueOrder(order) {
   const clientOrderId = order?.clientOrderId;
 
   if (!clientOrderId) {
-    return res.status(400).json({ error: "clientOrderId is required" });
+    const error = new Error("clientOrderId is required");
+    error.statusCode = 400;
+    throw error;
   }
 
   const storedOrder = {
     ...order,
-    status: "queued"  
+    quantity: Number(order.quantity || 1),
+    status: "queued",
+    createdAt: new Date().toISOString(),
   };
 
   await redis.set(orderKey(clientOrderId), JSON.stringify(storedOrder));
-  await redis.lPush(
-    jobsQueueName,
-    JSON.stringify({ clientOrderId })
-  );
+  await redis.lPush(jobsQueueName, JSON.stringify({ clientOrderId }));
 
-  return res.status(201).json(storedOrder);
+  return storedOrder;
+}
+
+app.post("/kiosk/orders", async (req, res) => {
+  try {
+    const storedOrder = await enqueueOrder(req.body);
+    const params = new URLSearchParams({
+      responseTitle: "Order accepted",
+      responseBody: JSON.stringify(storedOrder, null, 2),
+      clientOrderId: String(req.body.clientOrderId || ""),
+      item: String(req.body.item || ""),
+      quantity: String(req.body.quantity || "1"),
+    });
+
+    return res.redirect(303, `/?${params.toString()}`);
+  } catch (error) {
+    const params = new URLSearchParams({
+      responseTitle: "Order failed",
+      responseBody: error.message || "Unexpected error",
+      clientOrderId: String(req.body.clientOrderId || ""),
+      item: String(req.body.item || ""),
+      quantity: String(req.body.quantity || "1"),
+    });
+
+    return res.redirect(error.statusCode || 500, `/?${params.toString()}`);
+  }
+});
+
+app.post("/orders", async (req, res) => {
+  try {
+    const storedOrder = await enqueueOrder(req.body);
+    return res.status(201).json(storedOrder);
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      error: error.message || "Unexpected error",
+    });
+  }
 });
 
 app.get("/orders/:clientOrderId", async (req, res) => {

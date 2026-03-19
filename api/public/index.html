@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Campus Kiosk</title>
+    <style>
+      :root {
+        font-family: Arial, sans-serif;
+        color: #1f2937;
+        background: #f5f7fb;
+      }
+
+      body {
+        margin: 0;
+        padding: 32px 16px;
+      }
+
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        background: #ffffff;
+        border: 1px solid #dbe3f0;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      }
+
+      h1,
+      h2 {
+        margin-top: 0;
+      }
+
+      form {
+        display: grid;
+        gap: 16px;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        font-weight: 600;
+      }
+
+      input,
+      button {
+        font: inherit;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+      }
+
+      button {
+        background: #0f766e;
+        color: white;
+        border: none;
+        cursor: pointer;
+      }
+
+      .response {
+        margin-top: 24px;
+        padding: 16px;
+        border-radius: 10px;
+        background: #eef6ff;
+        border: 1px solid #bfdbfe;
+      }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Campus Kiosk</h1>
+      <form method="post" action="/kiosk/orders">
+        <label>
+          Client Order ID
+          <input id="clientOrderId" name="clientOrderId" required />
+        </label>
+        <label>
+          Item
+          <input id="item" name="item" required />
+        </label>
+        <label>
+          Quantity
+          <input id="quantity" name="quantity" type="number" min="1" value="1" required />
+        </label>
+        <button type="submit">Submit Order</button>
+      </form>
+
+      <section class="response">
+        <h2 id="response-title">Waiting for order</h2>
+        <pre id="response-body">Submit the form to create an order.</pre>
+      </section>
+    </main>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+
+      const responseTitle = params.get("responseTitle");
+      const responseBody = params.get("responseBody");
+      const clientOrderId = params.get("clientOrderId");
+      const item = params.get("item");
+      const quantity = params.get("quantity");
+
+      if (responseTitle) {
+        document.getElementById("response-title").textContent = responseTitle;
+      }
+
+      if (responseBody) {
+        document.getElementById("response-body").textContent = responseBody;
+      }
+
+      if (clientOrderId) {
+        document.getElementById("clientOrderId").value = clientOrderId;
+      }
+
+      if (item) {
+        document.getElementById("item").value = item;
+      }
+
+      if (quantity) {
+        document.getElementById("quantity").value = quantity;
+      }
+    </script>
+  </body>
+</html>
