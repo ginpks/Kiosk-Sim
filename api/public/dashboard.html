@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Campus Kiosk Dashboard</title>
+    <style>
+      :root {
+        font-family: Arial, sans-serif;
+        color: #1f2937;
+        background: #f5f7fb;
+      }
+
+      body {
+        margin: 0;
+        padding: 32px 16px;
+      }
+
+      main {
+        max-width: 980px;
+        margin: 0 auto;
+        background: #ffffff;
+        border: 1px solid #dbe3f0;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      }
+
+      .toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      button {
+        font: inherit;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: none;
+        background: #0f766e;
+        color: white;
+        cursor: pointer;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid #e2e8f0;
+        vertical-align: top;
+      }
+
+      th {
+        background: #f8fafc;
+      }
+
+      .muted {
+        color: #64748b;
+        font-size: 14px;
+      }
+
+      .empty {
+        padding: 24px 0;
+        color: #64748b;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="toolbar">
+        <div>
+          <h1>System Dashboard</h1>
+          <div class="muted" id="last-updated">Loading recent orders...</div>
+        </div>
+        <button id="refresh-button" type="button">Refresh</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Client Order ID</th>
+            <th>Status</th>
+            <th>Duplicate</th>
+            <th>Attempts</th>
+            <th>Timestamps</th>
+          </tr>
+        </thead>
+        <tbody id="orders-body">
+          <tr>
+            <td colspan="5" class="empty">Loading...</td>
+          </tr>
+        </tbody>
+      </table>
+    </main>
+
+    <script>
+      const ordersBody = document.getElementById("orders-body");
+      const lastUpdated = document.getElementById("last-updated");
+      const refreshButton = document.getElementById("refresh-button");
+
+      function formatTimestamp(label, value) {
+        if (!value) {
+          return `${label}: -`;
+        }
+
+        return `${label}: ${new Date(value).toLocaleString()}`;
+      }
+
+      function renderOrders(orders) {
+        if (orders.length === 0) {
+          ordersBody.innerHTML = `
+            <tr>
+              <td colspan="5" class="empty">No orders yet.</td>
+            </tr>
+          `;
+          return;
+        }
+
+        ordersBody.innerHTML = orders
+          .map((order) => {
+            return `
+              <tr>
+                <td>${order.clientOrderId}</td>
+                <td>${order.status || "-"}</td>
+                <td>${order.isDuplicate ? "yes" : "no"}</td>
+                <td>${order.attemptCount || 1}</td>
+                <td>
+                  ${formatTimestamp("created", order.createdAt)}<br />
+                  ${formatTimestamp("last attempt", order.lastAttemptAt)}<br />
+                  ${formatTimestamp("completed", order.completedAt)}
+                </td>
+              </tr>
+            `;
+          })
+          .join("");
+      }
+
+      async function loadOrders() {
+        try {
+          const response = await fetch("/dashboard/orders");
+          const orders = await response.json();
+
+          renderOrders(orders);
+          lastUpdated.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+        } catch (error) {
+          ordersBody.innerHTML = `
+            <tr>
+              <td colspan="5" class="empty">Failed to load orders.</td>
+            </tr>
+          `;
+          lastUpdated.textContent = `Load failed: ${error.message}`;
+        }
+      }
+
+      refreshButton.addEventListener("click", loadOrders);
+      void loadOrders();
+      setInterval(loadOrders, 3000);
+    </script>
+  </body>
+</html>

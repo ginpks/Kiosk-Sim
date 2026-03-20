@@ -71,3 +71,4 @@ for (let index = 1; index <= kiosks; index += 1) {
     void submitOrder();
   }, intervalMs);
 }
+

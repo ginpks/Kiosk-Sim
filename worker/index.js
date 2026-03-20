@@ -34,24 +34,29 @@ async function processJob(jobPayload) {
   }
 
   const order = JSON.parse(orderJson);
+  const processingAt = new Date().toISOString();
 
   await redis.set(
     orderKey(clientOrderId),
     JSON.stringify({
       ...order,
       status: "processing",
+      updatedAt: processingAt,
     })
   );
 
   // Simulate slow fulfillment work off the API request path.
   await sleep(2000);
 
+  const completedAt = new Date().toISOString();
+
   await redis.set(
     orderKey(clientOrderId),
     JSON.stringify({
       ...order,
       status: "completed",
-      completedAt: new Date().toISOString(),
+      updatedAt: completedAt,
+      completedAt,
     })
   );
 
