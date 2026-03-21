@@ -9,14 +9,12 @@ redis.on("error", (error) => {
   console.error("Worker Redis error", error);
 });
 
-function orderKey(clientOrderId) {
-  return `order:${clientOrderId}`;
-}
-
+// Simulate slow background work without blocking the API process.
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Take one queued job through processing and final completion state.
 async function processJob(jobPayload) {
   const job = JSON.parse(jobPayload);
   const { clientOrderId } = job;
@@ -26,7 +24,7 @@ async function processJob(jobPayload) {
     return;
   }
 
-  const orderJson = await redis.get(orderKey(clientOrderId));
+  const orderJson = await redis.get(`order:${clientOrderId}`);
 
   if (!orderJson) {
     console.error(`Skipped missing order ${clientOrderId}`);
@@ -37,7 +35,7 @@ async function processJob(jobPayload) {
   const processingAt = new Date().toISOString();
 
   await redis.set(
-    orderKey(clientOrderId),
+    `order:${clientOrderId}`,
     JSON.stringify({
       ...order,
       status: "processing",
@@ -51,7 +49,7 @@ async function processJob(jobPayload) {
   const completedAt = new Date().toISOString();
 
   await redis.set(
-    orderKey(clientOrderId),
+    `order:${clientOrderId}`,
     JSON.stringify({
       ...order,
       status: "completed",
@@ -59,9 +57,12 @@ async function processJob(jobPayload) {
     })
   );
 
+  await redis.del(`claim:${clientOrderId}`);
+
   console.log(`Processed order ${clientOrderId}`);
 }
 
+// Connect Redis and continuously consume jobs from the shared queue.
 async function start() {
   await redis.connect();
   console.log(`Worker started. Redis URL: ${redisUrl}`);

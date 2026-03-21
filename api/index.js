@@ -8,6 +8,7 @@ const redisUrl = process.env.REDIS_URL || "redis://redis:6379";
 const jobsQueueName = "jobs";
 const recentOrdersKey = "recent-orders";
 const recentOrdersLimit = 25;
+const orderClaimTtlSeconds = 30;
 
 const redis = createClient({ url: redisUrl });
 
@@ -15,14 +16,18 @@ redis.on("error", (error) => {
   console.error("Redis error", error);
 });
 
-function orderKey(clientOrderId) {
-  return `order:${clientOrderId}`;
+// Keep the dashboard's recent-order list deduplicated and capped.
+async function trackRecentOrder(clientOrderId) {
+  await redis.lRem(recentOrdersKey, 0, clientOrderId);
+  await redis.lPush(recentOrdersKey, clientOrderId);
+  await redis.lTrim(recentOrdersKey, 0, recentOrdersLimit - 1);
 }
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, "public")));
 
+// Accept an order submission, track retry metadata, and queue work once.
 async function enqueueOrder(order) {
   const clientOrderId = order?.clientOrderId;
 
@@ -32,16 +37,16 @@ async function enqueueOrder(order) {
     throw error;
   }
 
-  const existingOrderJson = await redis.get(orderKey(clientOrderId));
+  const existingOrderJson = await redis.get(`order:${clientOrderId}`);
   const existingOrder = existingOrderJson ? JSON.parse(existingOrderJson) : null;
   const now = new Date().toISOString();
-  const shouldRequeue = existingOrder?.status !== "completed";
+  const isCompletedOrder = existingOrder?.status === "completed";
 
   const storedOrder = {
     ...existingOrder,
     ...order,
     quantity: Number(order.quantity || 1),
-    status: shouldRequeue ? "queued" : existingOrder.status,
+    status: isCompletedOrder ? existingOrder.status : "queued",
     createdAt: existingOrder?.createdAt || now,
     updatedAt: now,
     lastAttemptAt: now,
@@ -49,15 +54,42 @@ async function enqueueOrder(order) {
     isDuplicate: Boolean(existingOrder),
   };
 
-  await redis.set(orderKey(clientOrderId), JSON.stringify(storedOrder));
-
-  if (shouldRequeue) {
-    await redis.lPush(jobsQueueName, JSON.stringify({ clientOrderId }));
+  if (isCompletedOrder) {
+    await redis.set(`order:${clientOrderId}`, JSON.stringify(storedOrder));
+    await trackRecentOrder(clientOrderId);
+    return storedOrder;
   }
 
-  await redis.lRem(recentOrdersKey, 0, clientOrderId);
-  await redis.lPush(recentOrdersKey, clientOrderId);
-  await redis.lTrim(recentOrdersKey, 0, recentOrdersLimit - 1);
+  const claimResult = await redis.set(`claim:${clientOrderId}`, now, {
+    NX: true,
+    EX: orderClaimTtlSeconds,
+  });
+
+  if (claimResult !== "OK") {
+    if (existingOrder) {
+      const duplicateOrder = {
+        ...existingOrder,
+        ...order,
+        quantity: Number(order.quantity || existingOrder.quantity || 1),
+        updatedAt: now,
+        lastAttemptAt: now,
+        attemptCount: (existingOrder.attemptCount || 0) + 1,
+        isDuplicate: true,
+      };
+
+      await redis.set(`order:${clientOrderId}`, JSON.stringify(duplicateOrder));
+      await trackRecentOrder(clientOrderId);
+      return duplicateOrder;
+    }
+
+    const error = new Error("order is already being created");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  await redis.set(`order:${clientOrderId}`, JSON.stringify(storedOrder));
+  await redis.lPush(jobsQueueName, JSON.stringify({ clientOrderId }));
+  await trackRecentOrder(clientOrderId);
 
   return storedOrder;
 }
@@ -100,7 +132,7 @@ app.post("/orders", async (req, res) => {
 
 app.get("/orders/:clientOrderId", async (req, res) => {
   const { clientOrderId } = req.params;
-  const order = await redis.get(orderKey(clientOrderId));
+  const order = await redis.get(`order:${clientOrderId}`);
 
   if (!order) {
     return res.status(404).json({ error: "order not found" });
@@ -117,7 +149,7 @@ app.get("/dashboard/orders", async (_req, res) => {
   }
 
   const orderJsonList = await redis.mGet(
-    clientOrderIds.map((clientOrderId) => orderKey(clientOrderId))
+    clientOrderIds.map((clientOrderId) => `order:${clientOrderId}`)
   );
 
   const orders = orderJsonList
@@ -127,6 +159,7 @@ app.get("/dashboard/orders", async (_req, res) => {
   return res.json(orders);
 });
 
+// Connect Redis before the API begins accepting requests.
 async function start() {
   await redis.connect();
 

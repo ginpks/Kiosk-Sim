@@ -17,6 +17,7 @@ for (let index = 1; index <= kiosks; index += 1) {
 
   console.log(`[${kioskId}] simulator loop started`);
 
+  // Generate or retry a kiosk order, then submit it to the API.
   async function submitOrder() {
     const shouldRetry =
       previousOrders.length > 0 && Math.random() < retryRate;
@@ -71,4 +72,3 @@ for (let index = 1; index <= kiosks; index += 1) {
     void submitOrder();
   }, intervalMs);
 }
-
