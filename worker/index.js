@@ -56,7 +56,6 @@ async function processJob(jobPayload) {
       ...order,
       status: "completed",
       updatedAt: completedAt,
-      completedAt,
     })
   );
 
