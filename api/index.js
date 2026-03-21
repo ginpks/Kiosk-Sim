@@ -35,12 +35,13 @@ async function enqueueOrder(order) {
   const existingOrderJson = await redis.get(orderKey(clientOrderId));
   const existingOrder = existingOrderJson ? JSON.parse(existingOrderJson) : null;
   const now = new Date().toISOString();
+  const shouldRequeue = existingOrder?.status !== "completed";
 
   const storedOrder = {
     ...existingOrder,
     ...order,
     quantity: Number(order.quantity || 1),
-    status: "queued",
+    status: shouldRequeue ? "queued" : existingOrder.status,
     createdAt: existingOrder?.createdAt || now,
     updatedAt: now,
     lastAttemptAt: now,
@@ -49,7 +50,11 @@ async function enqueueOrder(order) {
   };
 
   await redis.set(orderKey(clientOrderId), JSON.stringify(storedOrder));
-  await redis.lPush(jobsQueueName, JSON.stringify({ clientOrderId }));
+
+  if (shouldRequeue) {
+    await redis.lPush(jobsQueueName, JSON.stringify({ clientOrderId }));
+  }
+
   await redis.lRem(recentOrdersKey, 0, clientOrderId);
   await redis.lPush(recentOrdersKey, clientOrderId);
   await redis.lTrim(recentOrdersKey, 0, recentOrdersLimit - 1);
