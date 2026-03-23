@@ -1,17 +1,16 @@
 const apiBaseUrl = process.env.KIOSK_SIM_API_BASE_URL || "http://api:3000";
 const kiosks = Number(process.env.KIOSK_SIM_KIOSKS || 1);
-const kioskPrefix = process.env.KIOSK_SIM_KIOSK_PREFIX || "kiosk";
 const intervalMs = Number(process.env.KIOSK_SIM_INTERVAL_MS || 1000);
 const retryRate = Number(process.env.KIOSK_SIM_RETRY_RATE || 0.2);
 
 const menuItems = ["coffee", "tea", "muffin", "bagel", "sandwich"];
 
 console.log(
-  `Kiosk simulator started. api=${apiBaseUrl} kiosks=${kiosks} prefix=${kioskPrefix} intervalMs=${intervalMs} retryRate=${retryRate}`
+  `Kiosk simulator started. api=${apiBaseUrl} kiosks=${kiosks} prefix=kiosk intervalMs=${intervalMs} retryRate=${retryRate}`
 );
 
 for (let index = 1; index <= kiosks; index += 1) {
-  const kioskId = `${kioskPrefix}-${index}`;
+  const kioskId = `kiosk-${index}`;
   let sequence = 0;
   const previousOrders = [];
 

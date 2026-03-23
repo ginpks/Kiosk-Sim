@@ -29,7 +29,6 @@ services:
     environment:
       KIOSK_SIM_API_BASE_URL: http://api:3000
       KIOSK_SIM_KIOSKS: 3
-      KIOSK_SIM_KIOSK_PREFIX: kiosk
       KIOSK_SIM_INTERVAL_MS: 1000
       KIOSK_SIM_RETRY_RATE: 0.2
 
